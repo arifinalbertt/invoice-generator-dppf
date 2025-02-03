@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
-import Image from 'next/image';
+import React, { useState, useRef } from 'react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
 export default function InvoiceForm() {
   const [showInvoice, setShowInvoice] = useState(false);
+  const printRef = useRef(null);
   const [formData, setFormData] = useState({
     customerName: '',
     customerPhone: '',
@@ -76,20 +76,53 @@ export default function InvoiceForm() {
   };
 
   const generatePDF = async () => {
-    const element = document.getElementById('invoice');
+    const element = printRef.current;
+    if (!element) return;
+
+    // Wait for images to load
+    const images = element.getElementsByTagName('img');
+    const imagePromises = Array.from(images).map(img => {
+      if (img.complete) return Promise.resolve();
+      return new Promise(resolve => {
+        img.onload = resolve;
+        img.onerror = resolve;
+      });
+    });
+    
+    await Promise.all(imagePromises);
+
+    // Create canvas with better settings
     const canvas = await html2canvas(element, {
       scale: 2,
+      logging: true,
+      useCORS: true,
+      allowTaint: true,
+      imageTimeout: 0,
+      onclone: (clonedDoc) => {
+        const images = clonedDoc.getElementsByTagName('img');
+        Array.from(images).forEach(img => {
+          img.style.opacity = '1';
+        });
+      },
+      backgroundColor: '#ffffff',
+      windowWidth: element.scrollWidth,
+      windowHeight: element.scrollHeight
     });
-    const data = canvas.toDataURL("image/png");
+
+    const data = canvas.toDataURL("image/png", 1.0);
+    
     const pdf = new jsPDF({
       orientation: "portrait",
       unit: "px",
       format: "a4",
+      hotfixes: ["px_scaling"]
     });
+
     const imgProperties = pdf.getImageProperties(data);
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = (imgProperties.height * pdfWidth) / imgProperties.width;
-    pdf.addImage(data, "PNG", 0, 0, pdfWidth, pdfHeight);
+
+    pdf.addImage(data, "PNG", 0, 0, pdfWidth, pdfHeight, '', 'FAST');
     pdf.save(`Invoice-${formData.invoiceNumber}.pdf`);
   };
 
@@ -111,16 +144,15 @@ export default function InvoiceForm() {
           </button>
         </div>
 
-        <div id="invoice" className="bg-white p-8 rounded-lg shadow-lg" style={{ minHeight: '1123px' }}>
-          <div className="flex justify-between items-start mb-12"> {/* Changed items-center to items-start */}
-            <div className="w-40 h-40 mt-4"> {/* Added mt-4 for top margin */}
-              <div className="rounded-full overflow-hidden bg-black w-full h-full relative">
-                <Image 
+        <div ref={printRef} className="bg-white p-8 rounded-lg shadow-lg" style={{ minHeight: '1123px' }}>
+          <div className="flex justify-between items-start mb-12">
+            <div className="w-40 h-40 mt-4">
+              <div className="w-full h-full rounded-full bg-black overflow-hidden">
+                <img 
                   src="/your_logo.png" 
                   alt="DIAMOND PPF INDONESIA"
-                  fill
-                  className="object-cover p-1"
-                  priority
+                  className="w-full h-full object-cover p-1"
+                  crossOrigin="anonymous"
                 />
               </div>
             </div>
