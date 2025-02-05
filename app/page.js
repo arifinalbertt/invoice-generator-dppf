@@ -65,9 +65,6 @@ export default function InvoiceForm() {
 
   const calculateItemTotal = (item) => {
     const subtotal = Number(item.quantity) * Number(item.unitPrice);
-    if (item.discount) {
-      return subtotal - Number(item.discount);
-    }
     return subtotal;
   };
 
